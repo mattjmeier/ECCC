@@ -3,7 +3,7 @@
 
 # First make sure you have done the following in Qiime:
 
-# source /space/project/grdi/eco/training/20170223/pipeline/qiimePipeline/qiime1.9/bin/activate
+# source /qiime1.9/bin/activate
 # summarize_taxa.py -i ./otu_table.biom -L 6 -a -o taxa-absolute # GENUS LEVEL... L7 for species
 # biom  convert -i otu_table_L6.biom -o otu_table_L6_json.biom --to-json
 
