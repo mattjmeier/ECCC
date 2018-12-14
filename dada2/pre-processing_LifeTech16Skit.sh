@@ -87,7 +87,10 @@ echo "Output will be in ${dada2output}"
 echo "Files to be processed are as follows:"
 echo ${dada2inputfiles}
 
-~/programs/R-3.4.0/bin/Rscript ~/scripts/ECCC/dada2/DADA2.IonTorrent.wrapped.R ${dada2input} ${dada2output} ${dada2inputpattern}
+~/programs/R-3.4.0/bin/Rscript ~/scripts/ECCC/dada2/DADA2.IonTorrent.wrapped.R ${dada2input} ${dada2output} ${dada2inputpattern} 2>&1 | tee DADA2.log
+
+echo "FINISHED"
+date
 
 # Primer sequences
 

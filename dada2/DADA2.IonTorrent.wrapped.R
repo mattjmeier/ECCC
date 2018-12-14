@@ -45,12 +45,12 @@ names(derepFs) <- sample.names
 
 dadaFs <- dada(derepFs, err=errF, HOMOPOLYMER_GAP_PENALTY=-1, BAND_SIZE=32, multithread=TRUE)
 seqtab <- makeSequenceTable(dadaFs)
-# dim(seqtab)
-# table(nchar(getSequences(seqtab)))
+ dim(seqtab)
+ table(nchar(getSequences(seqtab)))
 
 seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
-# dim(seqtab.nochim)
-# sum(seqtab.nochim)/sum(seqtab)
+ dim(seqtab.nochim)
+ sum(seqtab.nochim)/sum(seqtab)
 
 taxa_silva <- assignTaxonomy(seqtab.nochim, "~/dbs/mothur/silva/silva_nr_v132_train_set.fa.gz", multithread=TRUE, tryRC=TRUE)
 taxa_silva <- addSpecies(taxa_silva, "~/dbs/mothur/silva/silva_species_assignment_v132.fa.gz")
@@ -62,15 +62,15 @@ taxa_rdp <- addSpecies(taxa_rdp, "~/dbs/mothur/rdp/rdp_species_assignment_16.fa.
 # taxa_gg <- addSpecies(taxa, "~/dbs/")
 
 # taxa.print <- taxa # Removing sequence rownames for display only
-# rownames(taxa.print) <- NULL
-# head(taxa.print)
+ rownames(taxa.print) <- NULL
+ head(taxa.print)
 
 seqs <- getSequences(seqtab.nochim)
 names(seqs) <- seqs
 # mult <- msa(seqs, method="ClustalW", type="dna", order="input")
 alignment <- AlignSeqs(DNAStringSet(seqs), anchor=NA)
 
-save.image(file=paste0(filt_path,"/R_output.IonTorrent.Rdata"))
-savehistory(file = paste0(filt_path,"/DADA2.IonTorrent.Rhistory"))
+save.image(file=paste0(args[2],"/R_output.IonTorrent.RData"))
+# savehistory(file = paste0(path,"/DADA2.IonTorrent.Rhistory"))
 
 ##### COMPLETE IN WINDOWS #####
