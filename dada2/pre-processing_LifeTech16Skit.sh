@@ -27,6 +27,15 @@ for file in *fasta
 	mv "${file}" "${file//-/\.}"
 done
 
+# For later processing it's also necessary to rename the FASTQ files. Don't operate on original files if you don't want them modified.
+
+for file in *fastq
+        do echo $file
+        mv "${file}" "${file//-/\.}"
+done
+
+# Get a list of the FASTA files separated by dashes
+
 files=(*fasta)
 files="${files[@]}"
 mothur_input=${files// /-}
@@ -51,6 +60,7 @@ for regionFile in *.regions
 	for variableRegion in $(echo V2 V3 V4 V6-7 V8 V9)
 		do echo ${variableRegion}
 		cat ${regionFile} | grep ${variableRegion} | awk '{print $2}' > ${regionFileName}${variableRegion}.readlist
+		cat ${regionFileName}${variableRegion}.readlist | awk '{gsub("_","\\_",$0);$0="^@"$0".*?(\\n.*){3}"}1' | pcregrep -oM -f - ${regionFileName}fastq > ${regionFileName}${variableRegion}.fastq	
 	done
 done
 
