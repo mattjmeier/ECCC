@@ -40,7 +40,8 @@ plotErrors(errF, nominalQ=TRUE)
 dev.off()
 
 derepFs <- derepFastq(filtFs, verbose=TRUE)
-sample.names <- sapply(strsplit(basename(filtFs), "\\."), `[`, 1)
+sample.names <- sapply(strsplit(basename(filtFs), "\\_filtered.fastq.gz"), `[`, 1)
+print(sample.names)
 names(derepFs) <- sample.names
 
 dadaFs <- dada(derepFs, err=errF, HOMOPOLYMER_GAP_PENALTY=-1, BAND_SIZE=32, multithread=TRUE)
