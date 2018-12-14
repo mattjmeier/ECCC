@@ -62,7 +62,7 @@ taxa_rdp <- addSpecies(taxa_rdp, "~/dbs/mothur/rdp/rdp_species_assignment_16.fa.
 # taxa_gg <- assignTaxonomy(seqtab.nochim, "~/dbs/mothur/greengenes/gg_13_8_train_set_97.fa.gz, multithread=TRUE, tryRC=TRUE)
 # taxa_gg <- addSpecies(taxa, "~/dbs/")
 
- taxa.print <- taxa # Removing sequence rownames for display only
+ taxa.print <- taxa_silva # Removing sequence rownames for display only
  rownames(taxa.print) <- NULL
  head(taxa.print)
 
