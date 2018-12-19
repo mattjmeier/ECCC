@@ -49,21 +49,25 @@ mothur "#align.seqs(fasta=${mothur_input}, reference=${db}, flip=t, processors=1
 # Output: an align.regions file with appended column for each V region identified
 for input in *align.report
 	do echo ${input}
-	Rscript ~/scripts/ECCC/dada2/pre-processing_LifeTech16Skit.R ${input}
+	~/programs/R-3.4.0/bin/Rscript ~/scripts/ECCC/dada2/pre-processing_LifeTech16Skit.R ${input}
 done
 
 # Output a new FASTQ file for each V region specified
 # Output new FASTQ file for each sample for each amplicon
+echo "Creating a new FASTQ file for each variable region of the 16S gene..."
 for regionFile in *.regions
-	do echo ${regionFile}
+	do echo "Working on ${regionFile}..."
 	regionFileName=${regionFile/regions/}
 	echo ${regionFileName}
 	for variableRegion in $(echo V2 V3 V4 V6-7 V8 V9)
-		do echo ${variableRegion}
+		do echo "Variable region: ${variableRegion}"
 		cat ${regionFile} | grep ${variableRegion} | awk '{print $2}' > ${regionFileName}${variableRegion}.readlist
 		~/programs/seqkit-0.93/seqkit grep --pattern-file ${regionFileName}${variableRegion}.readlist ${regionFileName}fastq > ${regionFileName}${variableRegion}.fastq
 	done
 done
+
+echo "Finished creating new FASTQ files for each varible region"
+
 # This command can be used in place of the seqkit one... However it is orders of magnitude slower. Would reccommend just grabbing the seqkit binary.
 # cat ${regionFileName}${variableRegion}.readlist | awk '{gsub("_","\\_",$0);$0="^@"$0".*?(\\n.*){3}"}1' | pcregrep -oM -f - ${regionFileName}fastq > ${regionFileName}${variableRegion}.fastq	
 
@@ -89,7 +93,7 @@ echo ${dada2inputfiles}
 
 ~/programs/R-3.4.0/bin/Rscript ~/scripts/ECCC/dada2/DADA2.IonTorrent.wrapped.R ${dada2input} ${dada2output} ${dada2inputpattern} 2>&1 | tee DADA2.log
 
-echo "FINISHED"
+echo "FINISHED DADA2 PIPELINE"
 date
 
 # Primer sequences
