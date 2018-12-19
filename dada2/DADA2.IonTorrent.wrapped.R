@@ -62,7 +62,7 @@ taxa_rdp <- assignTaxonomy(seqtab.nochim, "~/dbs/mothur/rdp/rdp_train_set_16.fa.
 taxa_rdp <- addSpecies(taxa_rdp, "~/dbs/mothur/rdp/rdp_species_assignment_16.fa.gz")
 
 taxa_gg <- assignTaxonomy(seqtab.nochim, "~/dbs/mothur/greengenes/gg_13_8_train_set_97.fa.gz", multithread=TRUE, tryRC=TRUE)
-taxa_gg <- addSpecies(taxa, "~/dbs/")
+#taxa_gg <- addSpecies(taxa_gg, "~/dbs/DOESNOTEXIST?")
 
 taxa.print <- taxa_silva # Removing sequence rownames for display only
 rownames(taxa.print) <- NULL
@@ -96,8 +96,8 @@ library(phyloseq)
 # Import tree from database
 x = read_tree_greengenes("~/dbs/trees/97_otus.tree")
 # Create phyloseq object
-ps_silva <- phyloseq(tax_table(taxa_silva), sample_data(sampledata.df), otu_table(seqtab.nochim, taxa_are_rows=FALSE), phy_tree(fitGTR$tree))
-ps_gg <- phyloseq(tax_table(taxa_gg), sample_data(sampledata.df), otu_table(seqtab.nochim, taxa_are_rows=FALSE), phy_tree(x))
+# ps_silva <- phyloseq(tax_table(taxa_silva), sample_data(sampledata.df), otu_table(seqtab.nochim, taxa_are_rows=FALSE), phy_tree(fitGTR$tree))
+# ps_gg <- phyloseq(tax_table(taxa_gg), sample_data(sampledata.df), otu_table(seqtab.nochim, taxa_are_rows=FALSE), phy_tree(x))
 
 # Save current state
 save.image(file=paste0(args[2],"/R_output.IonTorrent.FULL.RData"))

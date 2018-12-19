@@ -2,7 +2,38 @@
 # A script that will take each raw FASTQ file from a LifeTech 16S Metagenomics Kit experiment and outputs separate FASTQ files for each V region amplicon.
 
 # Specify database for mothur alignments
-db=~/dbs/mothur/silva/silva.nr_v128.align
+# db=~/dbs/mothur/silva/silva.nr_v128.align
+# db=~/dbs/mothur/greengenes/core_set_aligned.fasta
+
+if test -n "$(shopt -s nullglob; echo *fastq)"
+	then
+	echo "FASTQ files are present. They will be processed using DADA2 using the Ion Torrent specific methodology."
+	else
+	echo "No FASTQ files found in this folder. Please try again."
+	exit 1
+fi
+
+PS3='Please enter the database you would like to use for alignment: '
+options=("Silva" "Greengenes")
+select opt in "${options[@]}"
+do
+    case $opt in
+        "Silva")
+            echo "You chose Silva."
+	    db=~/dbs/mothur/silva/silva.nr_v128.align
+	    break
+            ;;
+        "Greengenes")
+            echo "You chose Greenegenes."
+            db=~/dbs/mothur/greengenes/core_set_aligned.fasta
+	    break
+            ;;
+        *) echo "Invalid option $REPLY";;
+    esac
+done
+
+echo "${REPLY}"
+echo "Starting alignment with ${db}..."
 
 # Convert FASTQ files to FASTA
 # Quality score encoding set for Ion Torrent output with Q33 flag
