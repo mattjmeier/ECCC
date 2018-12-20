@@ -87,9 +87,16 @@ fitGTR <- update(fit, k=4, inv=0.2)
 fitGTR <- optim.pml(fitGTR, model="GTR", optInv=TRUE, optGamma=TRUE, rearrangement = "stochastic", control = pml.control(trace = 0))
 detach("package:phangorn", unload=TRUE)
 
+
+regions <- sapply(strsplit(row.names(seqtab.nochim), split="\\."), `[`, length(strsplit(row.names(seqtab.nochim), split="\\.")[[1]]))
+
 # Create a basic data frame for sample data. This will need to be reconfigured for further analysis.
-sampledata.df <- data.frame(row.names = row.names(seqtab.nochim), number=c(1:nrow(seqtab.nochim)))
+sampledata.df <- data.frame(row.names = row.names(seqtab.nochim), number=c(1:nrow(seqtab.nochim)), V_region=regions)
 sampleOrder = row.names(sampledata.df)
+
+
+
+
 
 # Do some preliminary phyloseq work
 library(phyloseq)
