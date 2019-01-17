@@ -18,7 +18,7 @@ library(ggplot2) ## For theme_bw() and plotting in reports
 args<-commandArgs(TRUE)
 
 setwd(args[1])
-QCdirs <- dir()
+QCdirs <- dir(pattern="R_")
 
 #### RUN QoRTs FOR BY SAMPLE QC ####
 # Hard-coded sample decoder.
@@ -37,6 +37,11 @@ makeMultiPlot.all(res, outfile.dir = "./QoRTS_summary_", plot.device.name = "pdf
 # Make multiplot, colored by sample
 makeMultiPlot.colorBySample(res, plot.device.name="pdf")
 
+# Plot biotypes
+byLane.plotter <- build.plotter.colorBySample(res)
+pdf(file = "./biotype.pdf")
+makePlot.biotype.rates(byLane.plotter)
+dev.off()
 
 #### RUN DESeq2 ####
 
