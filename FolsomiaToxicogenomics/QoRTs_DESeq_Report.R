@@ -1,5 +1,4 @@
-sapply(strsplit(row.names(seqtab.nochim), split="\\."), `[`, length(strsplit(row.names(seqtab.nochim), split="\\.")[[1]])f
-rm various RNAseq tasks: QC and DEG analysis ###
+### Perform various RNAseq tasks: QC and DEG analysis ###
 # Arg 1: folder on which to run
 # Arg 2: path to GTF of genome
 # To install bioconductor packages for R3.4, use source("https://bioconductor.org/biocLite.R")
