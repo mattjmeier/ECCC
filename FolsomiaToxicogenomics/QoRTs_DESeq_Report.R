@@ -23,9 +23,9 @@ QCdirs <- dir(pattern="R_")
 #### RUN QoRTs FOR BY SAMPLE QC ####
 # Hard-coded sample decoder.
 decoder.data <- data.frame(unique.ID = 1:length(QCdirs),
-					group.ID = c("CONTROL","CONTROL2","CONTROL3"),
-					sample.ID = c("20_animals_003","10_animals_001","20_animals_002"),
-					qc.data.dir = QCdirs)
+				group.ID = c("CONTROL","CONTROL2","CONTROL3"),
+				sample.ID = c("20_animals_003","10_animals_001","20_animals_002"),
+				qc.data.dir = QCdirs)
 
 # Read in results from QC folders
 	
@@ -51,8 +51,8 @@ sampleCondition <- decoder.data$group.ID
 sampleName <- decoder.data$sample.ID
 
 sampleTable <- data.frame(sampleName = sampleName,
-				fileName = sampleFiles,
-				condition = sampleCondition)
+			fileName = sampleFiles,
+			condition = sampleCondition)
 
 # Make counts table
 dds_table <-  DESeqDataSetFromHTSeqCount(sampleTable = sampleTable, design = ~ condition)
@@ -81,8 +81,8 @@ dev.off()
 Folsomia_gtf <- GenomicFeatures::makeTxDbFromGFF(args[2])
 
 # desReport <- HTMLReport(shortName ='Folsomia_RNAseq_DESeq_test',
-#			title = 'Folsomia candida RNA-seq analysis of differential expression using DESeq',
-#			reportDirectory = "./reports")
+#		title = 'Folsomia candida RNA-seq analysis of differential expression using DESeq',
+#		reportDirectory = "./reports")
 
 ## P value cutoff should really be 0.05 or lower, this is for demonstration purposes
 # publish(DESeqResults, desReport, pvalueCutoff=1,
