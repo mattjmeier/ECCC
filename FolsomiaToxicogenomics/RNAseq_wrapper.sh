@@ -3,7 +3,7 @@
 
 # Path to genome
 genomeDir="${HOME}/dbs/folsomia/GCF_002217175.1_ASM221717v1"
-GTF="${HOME}/dbs/folsomia/GCF_002217175.1_ASM221717v1/GCF_002217175.1_ASM221717v1_genomic.gtf"
+GTF="${HOME}/dbs/folsomia/GCF_002217175.1_ASM221717v1/GCF_002217175.1_ASM221717v1_genomic.corrected.no_gene_name.added_transcript_ids_final.gtf"
 GENOME="${HOME}/dbs/folsomia/GCF_002217175.1_ASM221717v1/GCF_002217175.1_ASM221717v1_genomic.QoRTs_format.fna"
 echo $genomeDir
 
@@ -18,7 +18,7 @@ name=${fastq%fastq}
 fname=${name%.}
 echo ${name}
 echo ${fname}
-~/programs/STAR/source/STAR --genomeDir ${genomeDir} --runThreadN 14 --readFilesIn ${fastq} --outFileNamePrefix ./STAR_output/${name} --outSAMtype BAM SortedByCoordinate --quantMode TranscriptomeSAM GeneCounts
+~/programs/STAR/source/STAR --genomeDir ${genomeDir} --runThreadN 15 --readFilesIn ${fastq} --outFileNamePrefix ./STAR_output/${name} --outSAMtype BAM SortedByCoordinate --quantMode GeneCounts --limitBAMsortRAM 80000000000
 java -Xmx24G -jar ~/programs/QoRTs-1.3.0/QoRTs.jar QC --maxReadLength 500 --stranded --stranded_fr_secondstrand --singleEnded --maxPhredScore 76 --generatePlots --genomeFA ${GENOME} --rawfastq ${fastq} ./STAR_output/${name}Aligned.sortedByCoord.out.bam ${GTF} ./STAR_output/QC/${fname}
 done
 
@@ -50,6 +50,6 @@ QCfolder="${PWD}/STAR_output/QC/"
 echo "QC directory is ${QCfolder}"
 
 # Finish DEG analysis in R
-Rscript ${HOME}/scripts/ECCC/FolsomiaToxicogenomics/QoRTs_DESeq_Report.R ${PWD} ${GTF}
+Rscript ${HOME}/scripts/ECCC/FolsomiaToxicogenomics/QoRTs_DESeq_Report.R ${QCfolder} ${GTF}
 
 # Done
