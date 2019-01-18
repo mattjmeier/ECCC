@@ -75,7 +75,6 @@ pdf(file="plotMA.pdf")
 plotMA(resLFC, ylim=c(-2,2), xlim=c(0,500))
 dev.off()
 
-
 #### Create Report for DESeq2 Results ####
 ## makeDESeqDF? makeDESeqDF(object, countTable, pvalueCutoff, conditions, annotation.db, expName, reportDir, ...)
 
@@ -92,11 +91,61 @@ Folsomia_gtf <- GenomicFeatures::makeTxDbFromGFF(args[2])
 
 # finish(desReport)
 
-
 #### Create regionReport of DESeq2 results ####
 
 report <- DESeq2Report(dds, project = 'DESeq2 HTML report',
     intgroup = c('condition'), outdir = 'DESeq2-example',
     output = 'index', theme = theme_bw())
 
+### BUILD ORG PACKAGE OF ANNOTATIONS FOR FOLSOMIA - SHOULD ONLY NEED TO BE DONE ONCE.
+library(AnnotationForge)
 
+# makeOrgPackageFromNCBI(version = "0.1",
+#                       author = "Matt Meier <matthew.meier@canada.ca>",
+#                       maintainer = "Matt Meier <matthew.meier@canada.ca>",
+#                       outputDir = ".",
+#                       tax_id = "158441",
+#                       genus = "Folsomia",
+#                       species = "candida")
+
+### Look at gene lists for enriched pathways
+
+# install.packages("./org.Fcandida.eg.db", repos=NULL)
+
+### Create geneList object
+
+d <- data.frame()
+## 1st column is gene ID
+## 2nd column is FC
+
+## feature 1: numeric vector
+geneList = d[,2]
+## feature 2: named vector
+names(geneList) = as.character(d[,1])
+## feature 3: decreasing order
+geneList = sort(geneList, decreasing = TRUE)
+
+# ClusterProfiler
+library(clusterProfiler)
+
+# groupGO(), enrichGO(), and gseGO() may be useful here
+
+ggo <- groupGO(gene     = gene,
+               OrgDb    = org.Fcandida.eg.db,
+               ont      = "CC",
+               level    = 3,
+               readable = TRUE)
+
+head(ggo)
+
+ego <- gseGO(geneList     = geneList,
+              OrgDb        = org.Fcandida.eg.db,
+              ont          = "CC",
+              nPerm        = 1000,
+              minGSSize    = 100,
+              maxGSSize    = 500,
+              pvalueCutoff = 0.05,
+              verbose      = FALSE)
+			  
+barplot(ego, drop=TRUE, showCategory=12)
+barplot(ggo, drop=TRUE, showCategory=12)
