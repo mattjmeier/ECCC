@@ -24,3 +24,11 @@ cat ~/dbs/folsomia/GCF_002217175.1_ASM221717v1/GCF_002217175.1_ASM221717v1_genom
 # gene_id "ENSBTAG00000020601"; transcript_id "ENSBTAT00000027448"; gene_name "ZNF366";
 
 
+###### FOR ENSEMBL GENOME ######
+
+~/programs/cufflinks-2.2.1.Linux_x86_64/gffread -T fcand_genes.gff -o fcand_genes.gtf
+~/programs/cufflinks-2.2.1.Linux_x86_64/gffread  -F -T fcand_genes.gff -o fcand_genes.full.gtf
+
+~/programs/STAR/source/STAR --runThreadN 16 --runMode genomeGenerate --genomeDir ~/dbs/folsomia/GCF_002217175.1_ASM221717v1/ensembl/ --genomeFastaFiles ~/dbs/folsomia/GCF_002217175.1_ASM221717v1/ensembl/fcand_genome.fa --sjdbGTFfile ~/dbs/folsomia/GCF_002217175.1_ASM221717v1/ensembl/fcand_genes.full.gtf --genomeSAindexNbases 13
+cat ~/dbs/folsomia/GCF_002217175.1_ASM221717v1/ensembl/fcand_genome.fa | sed 's/\s.*$//' >  ~/dbs/folsomia/GCF_002217175.1_ASM221717v1/ensembl/fcand_genome.QoRTs_format.fa
+~/programs/fastx_toolkit/bin/fasta_formatter -i ./fcand_genome.QoRTs_format.fa -o ./fcand_genome.QoRTs_format.multiline.fa -w 80

@@ -2,9 +2,11 @@
 #### RUN RNAseq ALIGNMENTS ON FOLDER OF FASTQ FILES USING STAR, THEN HANDOFF DATA TO QoRTS, EdgeR, and DESeq2 ####
 
 # Path to genome
-genomeDir="${HOME}/dbs/folsomia/GCF_002217175.1_ASM221717v1"
-GTF="${HOME}/dbs/folsomia/GCF_002217175.1_ASM221717v1/GCF_002217175.1_ASM221717v1_genomic.corrected.no_gene_name.added_transcript_ids_final.gtf"
-GENOME="${HOME}/dbs/folsomia/GCF_002217175.1_ASM221717v1/GCF_002217175.1_ASM221717v1_genomic.QoRTs_format.fna"
+genomeDir="${HOME}/dbs/folsomia/GCF_002217175.1_ASM221717v1/ensembl"
+# GTF="${HOME}/dbs/folsomia/GCF_002217175.1_ASM221717v1/GCF_002217175.1_ASM221717v1_genomic.corrected.no_gene_name.added_transcript_ids_final.gtf"
+GTF="${HOME}/dbs/folsomia/GCF_002217175.1_ASM221717v1/ensembl/fcand_genes.full.gtf"
+# GENOME="${HOME}/dbs/folsomia/GCF_002217175.1_ASM221717v1/GCF_002217175.1_ASM221717v1_genomic.QoRTs_format.fna"
+GENOME="${HOME}/dbs/folsomia/GCF_002217175.1_ASM221717v1/ensembl/fcand_genome.QoRTs_format.multiline.fa"
 echo $genomeDir
 
 #### RUN STAR FOR EACH FASTQ SEPARATELY ####
@@ -50,6 +52,6 @@ QCfolder="${PWD}/STAR_output/QC/"
 echo "QC directory is ${QCfolder}"
 
 # Finish DEG analysis in R
-Rscript ${HOME}/scripts/ECCC/FolsomiaToxicogenomics/QoRTs_DESeq_Report.R ${QCfolder} ${GTF}
+# Rscript ${HOME}/scripts/ECCC/FolsomiaToxicogenomics/QoRTs_DESeq_Report.R ${QCfolder} ${GTF}
 
 # Done
