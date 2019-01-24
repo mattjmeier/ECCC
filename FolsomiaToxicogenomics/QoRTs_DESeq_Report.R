@@ -1,37 +1,54 @@
-### Perform various RNAseq tasks: QC and DEG analysis ###
+### Perform various RNAseq tasks: QC and DEG analysis, plotting, reporting, etc. ###
 # Arg 1: folder on which to run
 # Arg 2: path to GTF of genome
-# To install bioconductor packages for R3.4, use source("https://bioconductor.org/biocLite.R")
-#biocLite("apeglm")
-#biocLite("edgeR")
-#biocLite("DESeq2")
-#biocLite("ReportingTools")
-#biocLite("regionReport")
-#biocLite("clusterProfiler")
-#biocLite("GOexpress")
+# To install bioconductor packages for R3.4...
+source("https://bioconductor.org/biocLite.R")
+biocLite("apeglm")
+biocLite("edgeR")
+biocLite("DESeq2")
+biocLite("ReportingTools")
+biocLite("regionReport")
+biocLite("clusterProfiler")
+biocLite("GOexpress")
+biocLite("QoRTs")
+biocLite("RMariaDB")
+biocLite("vsn")
+library(RMariaDB)
+library(OrganismDbi)
+library(clusterProfiler)
+library(biomaRt)
+library(AnnotationForge)
 library(GOexpress)
 library(biomaRt)
 library(QoRTs)
 library(DESeq2)
 library(edgeR)
-library(ReportingTools)
 library(regionReport)
-library(ggplot2) ## For theme_bw() and plotting in reports
+library(org.Fcandida.eg.db)
+library(ggplot2)
+library(magrittr)
+library(vsn)
+# library(ReportingTools)
 
 args<-commandArgs(TRUE)
 
 setwd(args[1])
 QCdirs <- dir(pattern="R_")
 
-#### RUN QoRTs FOR BY SAMPLE QC ####
-# Hard-coded sample decoder.
+###########################################################################################
+####################################
+#### RUN QoRTs FOR BY-SAMPLE QC ####
+####################################
+###########################################################################################
+
+# Hard-coded sample decoder. Should ideally be provided as a text file to be read in.
 decoder.data <- data.frame(unique.ID = 1:length(QCdirs),
-				group.ID = c("CONTROL","CONTROL2","CONTROL3"),
-				sample.ID = c("20_animals_003","10_animals_001","20_animals_002"),
-				qc.data.dir = QCdirs)
+                           group.ID = c("CONTROL","CONTROL2","CONTROL3"),
+                           sample.ID = c("20_animals_003","10_animals_001","20_animals_002"),
+                           qc.data.dir = QCdirs)
 
 # Read in results from QC folders
-	
+
 res <- read.qc.results.data("./", decoder = decoder.data, calc.DESeq2 = TRUE, calc.edgeR = TRUE)
 
 # Make multiplot, defaults
@@ -46,7 +63,11 @@ pdf(file = "./biotype.pdf")
 makePlot.biotype.rates(byLane.plotter)
 dev.off()
 
-#### RUN DESeq2 ####
+###########################################################################################
+###########################################################################################
+#### RUN DESeq2 ###########################################################################
+###########################################################################################
+###########################################################################################
 
 # Create DESeq2 Object
 sampleFiles <- paste0(decoder.data$qc.data.dir,"/QC.geneCounts.formatted.for.DESeq.txt.gz")
@@ -54,45 +75,111 @@ sampleCondition <- decoder.data$group.ID
 sampleName <- decoder.data$sample.ID
 
 sampleTable <- data.frame(sampleName = sampleName,
-			fileName = sampleFiles,
-			condition = sampleCondition)
+                          fileName = sampleFiles,
+                          condition = sampleCondition)
 
-# Make counts table
-dds_table <-  DESeqDataSetFromHTSeqCount(sampleTable = sampleTable, design = ~ condition)
-dds <- DESeq(dds_table)
-resultsNames(dds)
-
-# Make for GOexpress
-exprs <- counts(dds, normalized=T) # get normalized counts for each feature per sample
-dimnames(exprs) = list(rownames(exprs), colnames(exprs))  # set the sample names correctly
-
-decoder.data.goexpress <- decoder.data
-
-row.names(decoder.data.goexpress) <- colnames(exprs)
-phenoData <- new("AnnotatedDataFrame", data=decoder.data.goexpress)
-minimalSet <- ExpressionSet(assayData=exprs, phenoData=phenoData)
-
-
+# Create DESeq object
+dds_from_counts <-  DESeqDataSetFromHTSeqCount(sampleTable = sampleTable, design = ~ condition)
+### Runs DGE analysis ###
+dds <- DESeq(dds_from_counts)
 # Default DESeq2 tests
 DESeqResults <- results(dds)
 resOrdered <- DESeqResults[order(DESeqResults$pvalue),]
 summary(resOrdered)
 sum(resOrdered$padj < 0.1, na.rm=TRUE)
 
-# Needs to be optimized for particular experimental design
+# Needs to be customized for particular experimental design
 DESeqResults_ControlVs2 <- results(dds, contrast=c("condition","CONTROL","CONTROL2"))
 DESeqResults_ControlVs3 <- results(dds, contrast=c("condition","CONTROL","CONTROL3"))
-
+# Logfoldchange Shrink
 resLFC <- lfcShrink(dds, coef="condition_CONTROL3_vs_CONTROL", type="apeglm")
 
-pdf(file="plotMA.pdf")
-plotMA(resLFC, ylim=c(-2,2), xlim=c(0,500))
+# Some info for sanity check
+resultsNames(dds)
+colData(dds) %>% head
+assay(dds) %>% head
+rowRanges(dds) %>% head
+counts(dds) %>% str
+
+# Make read counts table
+read.counts <- counts(dds, normalized=F)
+# Normalize read counts by size factors
+read.counts.sf_normalized <- counts(dds, normalized=F)
+lognorm.read.counts <- log2(read.counts.sf_normalized + 1)
+# Rlog normalized
+dds.rlog <- rlog(dds, blind=T) ### May need to set blind=F if large global changes are observed
+rlog.norm.counts <- assay(dds.rlog)
+# Calculate distances, Pearson correlation
+distance.m_rlog <- as.dist(1 - cor(rlog.norm.counts, method="pearson"))
+cor(rlog.norm.counts, method="pearson")
+# Principal components analysis
+pc <- prcomp(t(rlog.norm.counts))
+
+###########################################################################################
+######## PRODUCE VARIOUS PLOTS IN PDF #####################################################
+###########################################################################################
+# Plot read counts and log normalized read counts for QC check
+pdf(file="Read_counts.log2normalized.vs.untransformed.pdf")
+par(mfrow=c(2,1))
+boxplot(read.counts.sf_normalized,
+            notch=T,
+            main="Untransformed read counts",
+            ylab="Read counts")
+boxplot(lognorm.read.counts,
+            notch=T,
+            main="log2-Transformed read counts",
+            ylab="log2 of Read counts")
+par(mfrow=c(1,1))
+# Plot first and second samples against each other
+plot(lognorm.read.counts[,1:2],
+            cex=0.5,
+            main="Size factor and log normalized read counts")
+plot(rlog.norm.counts[,1:2],
+            cex=0.5,
+            main="Size factor and rlog normalized read counts")
+# Plot mean by standard deviation
+msd_plot <- meanSdPlot(lognorm.read.counts, ranks=FALSE, plot=FALSE)
+msd_plot$gg +
+            ggtitle("Sequencing depth normalized log2(read counts)") +
+            ylab("Standard deviation")
+msd_plot2 <- meanSdPlot(rlog.norm.counts, ranks=FALSE, plot=FALSE)
+msd_plot2$gg +
+            ggtitle("Sequencing depth normalized rlog(read counts)") +
+            ylab("Standard deviation")
+plot(hclust(distance.m_rlog),
+            labels=colnames(rlog.norm.counts),
+            main="rlog transformed read counts\ndistance: Pearson correlation")
+# Principal components analysis plot
+P <- plotPCA(dds.rlog)
+P <- P + theme_bw() + ggtitle("Rlog transformed counts")
+print(P)
+# P value distribution
+hist(DESeqResults$pvalue, col="grey",
+     border="white", xlab="", ylab="",
+     main="Frequencies of all unadjusted p-values")
+# MA Plots
+DESeq2::plotMA(DESeqResults, alpha=0.05, main="MA plot,  results", ylim=c(-4,4))
+# DESeq2::plotMA(resLFC, ylim=c(-2,2), xlim=c(0,500), main="MA plot,  LFC shrunk")
 dev.off()
+###########################################################################################
 
-#### Create Report for DESeq2 Results ####
-## makeDESeqDF? makeDESeqDF(object, countTable, pvalueCutoff, conditions, annotation.db, expName, reportDir, ...)
+# Make objects for later use in GOexpress
+dimnames(read.counts.sf_normalized) = list(rownames(read.counts.sf_normalized), colnames(read.counts.sf_normalized))  # set the sample names correctly
+# New metadata table for GOexpress
+decoder.data.goexpress <- decoder.data
+# New objects for input to GOexpress
+row.names(decoder.data.goexpress) <- colnames(exprs)
+phenoData <- new("AnnotatedDataFrame", data=decoder.data.goexpress)
+minimalSet <- ExpressionSet(assayData=exprs, phenoData=phenoData)
 
-Folsomia_gtf <- GenomicFeatures::makeTxDbFromGFF(args[2])
+###########################################################################################
+#### Create Region Report for DESeq2 Result ###############################################
+###########################################################################################
+
+# makeDESeqDF?
+# makeDESeqDF(object, countTable, pvalueCutoff, conditions, annotation.db, expName, reportDir, ...)
+
+# Folsomia_gtf <- GenomicFeatures::makeTxDbFromGFF(args[2])
 
 # desReport <- HTMLReport(shortName ='Folsomia_RNAseq_DESeq_test',
 #		title = 'Folsomia candida RNA-seq analysis of differential expression using DESeq',
@@ -105,13 +192,15 @@ Folsomia_gtf <- GenomicFeatures::makeTxDbFromGFF(args[2])
 
 # finish(desReport)
 
-#### Create regionReport of DESeq2 results ####
-
 report <- DESeq2Report(dds, project = 'DESeq2 HTML report',
-    intgroup = c('condition'), outdir = 'DESeq2-report',
-    output = 'index', theme = theme_bw())
-### BUILD ORG PACKAGE OF ANNOTATIONS FOR FOLSOMIA - SHOULD ONLY NEED TO BE DONE ONCE.
-library(AnnotationForge)
+                       intgroup = c('condition'), outdir = 'DESeq2-report',
+                       output = 'index', theme = theme_bw())
+
+###########################################################################################
+### BUILD ORG PACKAGE OF ANNOTATIONS FOR FOLSOMIA - SHOULD ONLY NEED TO BE DONE ONCE.######
+### THERE ARE MANY WAYS TO SKIN THIS CAT. CUSTOM DATA FRAMES GIVE THE MOST FLEXIBILITY.####
+### EXAMPLES FOLLOW. ######################################################################
+###########################################################################################
 
 # makeOrgPackageFromNCBI(version = "0.1",
 #                       author = "Matt Meier <matthew.meier@canada.ca>",
@@ -121,15 +210,112 @@ library(AnnotationForge)
 #                       genus = "Folsomia",
 #                       species = "candida")
 
-### Look at gene lists for enriched pathways
+#### LOAD FOLSOMIA BIOMART ACCESS #### Useful to do in script routinely, for possible use later
 
-# install.packages("./org.Fcandida.eg.db", repos=NULL)
+listMarts(host="metazoa.ensembl.org")
+ensembl=useMart("metazoa_mart", host="metazoa.ensembl.org")
+listDatasets(ensembl)
+ensembl = useDataset("fcandida_eg_gene", mart=ensembl)
+ensembl = useDataset("fcandida_eg_gene", mart=useMart("metazoa_mart", host="metazoa.ensembl.org"))
+filters = listFilters(ensembl)
+attributes = listAttributes(ensembl)
+for (i in keytypes(ensembl)) { print(i); print(head(keys(ensembl, keytype=i))) }
 
-library(org.Fcandida.eg.db)
+###########################################################################################
+# This works, but does not include GO IDs
+# Fcandida <- makeTxDbFromBiomart(biomart="metazoa_mart", 
+#                                 dataset="fcandida_eg_gene",
+#                                 host="metazoa.ensembl.org")
+# saveDb(Fcandida, file="~/dbs/folsomia/GCF_002217175.1_ASM221717v1/ensembl/Fcandida.sqlite")
+# install.packages("./TxDb.Fcandida.BioMart.metazoamart", repos = NULL, type="source")
+# library(TxDb.Fcandida.BioMart.metazoamart)
+###########################################################################################
 
-### Create geneList object
+###########################################################################################
+# This one didn't work... Probably designed for standard Ensembl releases
+# ftp://ftp.ensemblgenomes.org/pub/release-42/metazoa/
+# makeTxDbFromEnsembl(organism="Folsomia candida",
+#                     release=42,
+#                     circ_seqs=DEFAULT_CIRC_SEQS,
+#                     server="ftp://ftp.ensemblgenomes.org/pub/release-42/metazoa/",
+#                     username="anonymous", password=NULL, port=80,
+#                     tx_attrib=NULL)
+###########################################################################################
 
+
+###########################################################################################
+###########################################################################################
+# Make custom TxDb using data frames
+# This appears to be the best choice for nonmodel organisms; flexible and customizeable
+###########################################################################################
+###########################################################################################
+#
+# genesDF = getBM(attributes=c('ensembl_gene_id',
+#                              'ensembl_transcript_id',
+#                              'description',
+#                              'chromosome_name',
+#                              'ensembl_peptide_id'
+#                               ), mart=ensembl)
+# 
+# colnames(genesDF)[1] = 'GID'
+# colnames(genesDF)[2] = 'ENSEMBLTRANS'
+# colnames(genesDF)[3] = 'DESCRIPTION'
+# colnames(genesDF)[4] = 'CHR'
+# colnames(genesDF)[5] = 'ENSEMBLPROT'
+# 
+# protannDF = getBM(attributes=c('ensembl_gene_id',
+#                                'interpro',
+#                                'pfam',
+#                                'kegg_enzyme' ), mart=ensembl)
+# 
+# colnames(protannDF)[1] = 'GID'
+# colnames(protannDF)[2] = 'INTERPRO'
+# colnames(protannDF)[3] = 'PFAM'
+# colnames(protannDF)[4] = 'PATH'
+# 
+# pfscanDF = getBM(attributes=c('ensembl_gene_id',
+#                               'pfscan'), mart=ensembl)
+# 
+# colnames(pfscanDF)[1] = 'GID'
+# colnames(pfscanDF)[2] = 'PROSITE'
+# pfscanDF_annotated_only <- pfscanDF[grep("PS", pfscanDF$PROSITE),]
+# 
+# goDF = getBM(attributes=c('ensembl_gene_id', 'go_id', 'go_linkage_type'), mart=ensembl)
+# colnames(goDF)[1] = 'GID'
+# colnames(goDF)[2] = 'GO'
+# colnames(goDF)[3] = 'EVIDENCE'
+# 
+# goDF_annotated_only <- goDF[grep("GO", goDF$GO),]
+# 
+# makeOrgPackage(gene_info=genesDF,
+#                prot=protannDF,
+#                prosite=pfscanDF_annotated_only,
+#                go=goDF_annotated_only,
+#                version="0.1",
+#                author = "Matt Meier <matthew.meier@canada.ca>",
+#                maintainer = "Matt Meier <matthew.meier@canada.ca>",
+#                outputDir = ".",
+#                tax_id="158441",
+#                genus="Folsomia",
+#                species="candida",
+#                goTable="go")
+# 
+# detach("package:org.Fcandida.eg.db", unload=TRUE)
+# install.packages("./org.Fcandida.eg.db", repos = NULL, type="source")
+# library(org.Fcandida.eg.db)
+###########################################################################################
+
+
+###########################################################################################
+###########################################################################################
+#### ClusterProfiler ######################################################################
+###########################################################################################
+###########################################################################################
+
+# Create geneList object from DESeq2 results
 d <- data.frame(row.names(DESeqResults),DESeqResults[,2])
+d2 <- d
+d2[,1] <- as.character(d[,1]) # For clusterProfiler, where character is needed...
 ## 1st column is gene ID
 ## 2nd column is FC
 
@@ -142,146 +328,140 @@ geneList = sort(geneList, decreasing = TRUE)
 
 genesymbols=d[,1]
 
+# columns(org.Fcandida.eg.db)
+## [1] "CHR"          "DESCRIPTION"  "ENSEMBLPROT"  "ENSEMBLTRANS" "EVIDENCE"
+## [6] "EVIDENCEALL"  "GID"          "GO"           "GOALL"        "INTERPRO"
+## [11] "ONTOLOGY"     "ONTOLOGYALL"  "PATH"         "PFAM"         "PROSITE"
+# keytypes(org.Fcandida.eg.db)
+## [1] "DESCRIPTION"  "ENSEMBLPROT"  "ENSEMBLTRANS" "EVIDENCE"     "EVIDENCEALL"
+## [6] "GID"          "GO"           "GOALL"        "INTERPRO"     "ONTOLOGY"
+## [11] "ONTOLOGYALL"  "PATH"         "PFAM"         "PROSITE"
 
-# ClusterProfiler
-library(OrganismDbi)
-library(clusterProfiler)
-library(biomaRt)
-
-listMarts(host="metazoa.ensembl.org")
-ensembl=useMart("metazoa_mart", host="metazoa.ensembl.org")
-listDatasets(ensembl)
-ensembl = useDataset("fcandida_eg_gene", mart=ensembl)
-ensembl = useDataset("fcandida_eg_gene", mart=useMart("metazoa_mart", host="metazoa.ensembl.org"))
-filters = listFilters(ensembl)
-filters[1:5,]
-attributes = listAttributes(ensembl)
-attributes[1:5,]
-
-# Fcandida <- makeTxDbFromBiomart(biomart="metazoa_mart", dataset="fcandida_eg_gene",  host="metazoa.ensembl.org")
-# saveDb(Fcandida, file="~/dbs/folsomia/GCF_002217175.1_ASM221717v1/ensembl/Fcandida.sqlite")
-Fcandida <- loadDb("Fcandida.sqlite")
-
-for (i in keytypes(ensembl)) { print(i); print(head(keys(ensembl, keytype=i))) }
-
-goIDs <- getBM(attributes=c('ensembl_gene_id', 'go_id'), 
-      filters = 'ensembl_gene_id', 
-      values = genesymbols, 
-      mart = ensembl)
-
-allgenes.Ensembl = getBM(attributes=c('ensembl_gene_id', 'ensembl_transcript_id', 'description'), mart=ensembl)
-colnames(allgenes.Ensembl)[1] = 'gene_id'
-allGO.Ensembl = getBM(attributes=c('go_id', 'name_1006', 'namespace_1003'), mart=ensembl)
-GOgenes.Ensembl = getBM(attributes=c('ensembl_gene_id', 'go_id'), mart=ensembl)
-colnames(GOgenes.Ensembl)[1] = 'gene_id'
-GOgenes.Ensembl = GOgenes.Ensembl[GOgenes.Ensembl$go_id != '',]
-GOgenes.Ensembl = GOgenes.Ensembl[GOgenes.Ensembl$gene_id != '',]
-save(GOgenes.Ensembl, file='GOgenes.Ensembl.rda')
-save(allGO.Ensembl, file='allGO.Ensembl.rda')
-save(allgenes.Ensembl, file='allgenes.Ensembl.rda')
-
-go_express_analysis <- GO_analyse(eSet=minimalSet, f='sample.ID', GO_genes=GOgenes.Ensembl, all_GO=allGO.Ensembl, all_genes=allgenes.Ensembl)
-
-BP.5 <- subset_scores(result = AlvMac_results.pVal, namespace = "biological_process", total = 5, p.val=0.05) # requires 5 or more associated genes
-
-<- subset( go_express_analysis.pVal$GO, total_count >= 5 & p.val<0.05 & namespace_1003=='biological_process')
-
-heatmap_GO(go_id = "GO:0016507", result = go_express_analysis, eSet=minimalSet, cexRow=0.4, cexCol=1, cex.main=1, main.Lsplit=30)
-expression_plot(gene_id = "Fcan01_154", result = go_express_analysis , eSet=minimalSet, x_var = "sample.ID", title.size=1.5, legend.title.size=10, legend.text.size=10, legend.key.size=15)
-
-# groupGO(), enrichGO(), and gseGO() may be useful here
-
-> columns(org.Fcandida.eg.db)
-[1] "ACCNUM"   "ALIAS"    "CHR"      "ENTREZID" "GENENAME" "GID"      "PMID"
-[8] "REFSEQ"   "SYMBOL"
-> keytypes(org.Fcandida.eg.db)
-[1] "ACCNUM"   "ALIAS"    "ENTREZID" "GENENAME" "GID"      "PMID"     "REFSEQ"
-[8] "SYMBOL"
-
-for (i in keytypes(org.Fcandida.eg.db)) { print(i); print(head(keys(org.Fcandida.eg.db, keytype=i))) }
-for (i in keytypes(Fcandida)) { print(i); print(head(keys(Fcandida, keytype=i))) }
+# for (i in keytypes(org.Fcandida.eg.db)) { print(i); print(head(keys(org.Fcandida.eg.db, keytype=i))) }
+# [1] "DESCRIPTION"
+# [1] "(+)-caryolan-1-ol synthase"
+# [2] "(+)-germacrene D synthase"
+# [3] "(-)-delta-cadinene synthase"
+# [4] "(3S,6E)-nerolidol synthase"
+# [5] "(E)-2-epi-beta-caryophyllene synthase"
+# [6] "(R)-mandelonitrile lyase 2"
+# [1] "ENSEMBLPROT"
+# [1] "OXA36501" "OXA36502" "OXA36503" "OXA36504" "OXA36505" "OXA36506"
+# [1] "ENSEMBLTRANS"
+# [1] "OXA36501" "OXA36502" "OXA36503" "OXA36504" "OXA36505" "OXA36506"
+# [1] "EVIDENCE"
+# [1] "IEA"
+# [1] "EVIDENCEALL"
+# [1] "IEA"
+# [1] "GID"
+# [1] "Fcan01_02664" "Fcan01_03138" "Fcan01_00050" "Fcan01_03825" "Fcan01_02931"
+# [6] "Fcan01_01851"
+# [1] "GO"
+# [1] "GO:0000012" "GO:0000015" "GO:0000027" "GO:0000030" "GO:0000045"
+# [6] "GO:0000049"
+# [1] "GOALL"
+# [1] "GO:0000002" "GO:0000003" "GO:0000012" "GO:0000015" "GO:0000026"
+# [6] "GO:0000027"
+# [1] "INTERPRO"
+# [1] ""          "IPR000001" "IPR000003" "IPR000007" "IPR000008" "IPR000009"
+# [1] "ONTOLOGY"
+# [1] "BP" "CC" "MF"
+# [1] "ONTOLOGYALL"
+# [1] "BP" "CC" "MF"
+# [1] "PATH"
+# [1] ""               "00010+1.1.1.1"  "00010+1.1.1.27" "00010+1.8.1.4"
+# [5] "00010+2.3.1.12" "00010+2.7.1.1"
+# [1] "PFAM"
+# [1] ""        "PF00001" "PF00002" "PF00003" "PF00004" "PF00005"
+# [1] "PROSITE"
+# [1] "PS01031" "PS01033" "PS01179" "PS01180" "PS01225" "PS50001"
 
 
-[1] "ACCNUM"
-[1] "AAK77866.1" "AAL67688.1" "AAL78089.1" "AB190297.1" "AB190298.1"
-[6] "AB435158.1"
-
-[1] "ALIAS"
-[1] "ATG8a"      "Actin-3"    "Actin-5C"   "Adseverin"  "Afadin"
-[6] "Aftiphilin"
-
-[1] "ENTREZID"
-[1] "110841585" "110841586" "110841587" "110841588" "110841589" "110841590"
-
-[1] "GENENAME"
-[1] "(E3-independent) E2 ubiquitin-conjugating enzyme UBE2O-like"
-[2] "1,2-dihydroxy-3-keto-5-methylthiopentene dioxygenase-like"
-[3] "1,25-dihydroxyvitamin D(3) 24-hydroxylase, mitochondrial-like"
-[4] "1,4-alpha-glucan-branching enzyme-like"
-[5] "1,5-anhydro-D-fructose reductase-like"
-[6] "1-acyl-sn-glycerol-3-phosphate acyltransferase alpha-like"
-
-[1] "GID"
-[1] "110841586" "110841587" "110841590" "110841591" "110841603" "110841607"
-
-[1] "PMID"
-[1] "16174032" "18853822" "20022415" "20353601" "20921393" "23873479"
-
-[1] "REFSEQ"
-[1] "XM_022087273.1" "XM_022087274.1" "XM_022087275.1" "XM_022087276.1"
-[5] "XM_022087277.1" "XM_022087278.1"
-
-[1] "SYMBOL"
-[1] "LOC110841585" "LOC110841586" "LOC110841587" "LOC110841588" "LOC110841589"
-[6] "LOC110841590"
-
-head(bitr(d[,1], fromType="SYMBOL", toType=c("ACCNUM"), OrgDb="org.Fcandida.eg.db"))
-head(bitr(d[,1], fromType="SYMBOL", toType=c("UNIPROT"), OrgDb="org.Fcandida.eg.db")) ### Won't work because no table exists for this
-### 'toType' should be one of ACCNUM, ALIAS, ENTREZID, GENENAME, GID, PMID, REFSEQ, SYMBOL.
+# head(bitr(d[,1], fromType="GID", toType=c("GO"), OrgDb="org.Fcandida.eg.db"))
 
 
-> head(keys(org.Fcandida.eg.db, keytype="ENTREZID"))
-[1] "110841585" "110841586" "110841587" "110841588" "110841589" "110841590"
-> head(keys(org.Fcandida.eg.db, keytype="GID"))
-[1] "110841586" "110841587" "110841590" "110841591" "110841603" "110841607"
-> head(keys(org.Fcandida.eg.db, keytype="REFSEQ"))
-[1] "XM_022087273.1" "XM_022087274.1" "XM_022087275.1" "XM_022087276.1"
-[5] "XM_022087277.1" "XM_022087278.1"
-> head(keys(org.Fcandida.eg.db, keytype="ACCNUM"))
-[1] "AAK77866.1" "AAL67688.1" "AAL78089.1" "AB190297.1" "AB190298.1"
-[6] "AB435158.1"
-> head(keys(org.Fcandida.eg.db, keytype="SYMBOL"))
-[1] "LOC110841585" "LOC110841586" "LOC110841587" "LOC110841588" "LOC110841589"
-[6] "LOC110841590"
+# MF = molecular function
+# BP = biological process
+# CC = cellular component
+# GO is allowed as ont, but unsure what this returns
 
-## I think the column d[,1]  needs to be converted to ENTREZID - look into this.
+# groupGO(), enrichGO(), and gseGO() may be useful for various applications.
 
-
-
-ggo <- groupGO(gene     = d[,1],
-               OrgDb    = Fcandida,
-			   keytype  = "GENEID",
-               ont      = "BP",
-               level    = 1,
-               readable = TRUE)
-
-			   
-ggo <- groupGO(gene     = 110841585,
+ggoMF_level2 <- groupGO(gene     = d2[,1],
                OrgDb    = org.Fcandida.eg.db,
-               ont      = "BP",
-               level    = 1,
-               readable = TRUE)
+               keytype  = "GID",
+               ont      = "MF",
+               level    = 2,
+               readable = FALSE)
 
-head(ggo)
+ggoBP_level2 <- groupGO(gene     = d2[,1],
+                 OrgDb    = org.Fcandida.eg.db,
+                 keytype  = "GID",
+                 ont      = "BP",
+                 level    = 2,
+                 readable = FALSE)
 
 ego <- gseGO(geneList     = geneList,
-              OrgDb        = org.Fcandida.eg.db,
-              ont          = "CC",
-              nPerm        = 1000,
-              minGSSize    = 100,
-              maxGSSize    = 500,
-              pvalueCutoff = 0.05,
-              verbose      = FALSE)
-			  
-barplot(ego, drop=TRUE, showCategory=12)
-barplot(ggo, drop=TRUE, showCategory=12)
+             keyType      = "GID",
+             OrgDb        = org.Fcandida.eg.db,
+             ont          = "CC",
+             nPerm        = 1000,
+             minGSSize    = 100,
+             maxGSSize    = 500,
+             pvalueCutoff = 0.05,
+             verbose      = FALSE)
+
+pdf(file="Gene_ontologies.pdf")
+# shoCategory sets the number of categories to display
+barplot(ggoMF_level2, drop=TRUE, showCategory=100)
+barplot(ggoBP_level2, drop=TRUE, showCategory=100)
+dev.off()
+
+
+###########################################################################################
+###########################################################################################
+#### GOexpress ############################################################################
+###########################################################################################
+###########################################################################################
+#
+# allgenes.Ensembl = getBM(attributes=c('ensembl_gene_id', 'ensembl_transcript_id', 'description'), mart=ensembl)
+# colnames(allgenes.Ensembl)[1] = 'gene_id'
+# allGO.Ensembl = getBM(attributes=c('go_id', 'name_1006', 'namespace_1003'), mart=ensembl)
+# GOgenes.Ensembl = getBM(attributes=c('ensembl_gene_id', 'go_id'), mart=ensembl)
+# colnames(GOgenes.Ensembl)[1] = 'gene_id'
+# GOgenes.Ensembl = GOgenes.Ensembl[GOgenes.Ensembl$go_id != '',]
+# GOgenes.Ensembl = GOgenes.Ensembl[GOgenes.Ensembl$gene_id != '',]
+# save(GOgenes.Ensembl, file='GOgenes.Ensembl.rda')
+# save(allGO.Ensembl, file='allGO.Ensembl.rda')
+# save(allgenes.Ensembl, file='allgenes.Ensembl.rda')
+# 
+# go_express_analysis <- GO_analyse(eSet=minimalSet,
+#                                   f='sample.ID',
+#                                   GO_genes=GOgenes.Ensembl,
+#                                   all_GO=allGO.Ensembl,
+#                                   all_genes=allgenes.Ensembl)
+# 
+# BP.5 <- subset_scores(result = AlvMac_results.pVal, namespace = "biological_process",
+#                       total = 5, p.val=0.05) # requires 5 or more associated genes
+# 
+# <- subset( go_express_analysis.pVal$GO,
+#            total_count >= 5 & p.val<0.05 & namespace_1003=='biological_process')
+# 
+# heatmap_GO(go_id = "GO:0016507",
+#            result = go_express_analysis,
+#            eSet=minimalSet, cexRow=0.4,
+#            cexCol=1,
+#            cex.main=1,
+#            main.Lsplit=30)
+# 
+# expression_plot(gene_id = "Fcan01_154",
+#                 result = go_express_analysis,
+#                 eSet=minimalSet,
+#                 x_var = "sample.ID",
+#                 title.size=1.5,
+#                 legend.title.size=10,
+#                 legend.text.size=10,
+#                 legend.key.size=15)
+#
+###########################################################################################
+
