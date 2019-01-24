@@ -52,6 +52,6 @@ QCfolder="${PWD}/STAR_output/QC/"
 echo "QC directory is ${QCfolder}"
 
 # Finish DEG analysis in R
-# Rscript ${HOME}/scripts/ECCC/FolsomiaToxicogenomics/QoRTs_DESeq_Report.R ${QCfolder} ${GTF}
+Rscript ${HOME}/scripts/ECCC/FolsomiaToxicogenomics/QoRTs_DESeq_Report.R ${QCfolder} ${GTF}
 
 # Done
