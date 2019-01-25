@@ -1,24 +1,25 @@
-### Perform various RNAseq tasks: QC and DEG analysis, plotting, reporting, etc. ###
+### Perform various RNAseq tasks: QC and DEG analysis ###
 # Arg 1: folder on which to run
 # Arg 2: path to GTF of genome
+
 # To install bioconductor packages for R3.4...
-source("https://bioconductor.org/biocLite.R")
-biocLite("apeglm")
-biocLite("edgeR")
-biocLite("DESeq2")
-biocLite("ReportingTools")
-biocLite("regionReport")
-biocLite("clusterProfiler")
-biocLite("GOexpress")
-biocLite("QoRTs")
-biocLite("RMariaDB")
-biocLite("vsn")
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("apeglm")
+#biocLite("edgeR")
+#biocLite("DESeq2")
+#biocLite("ReportingTools")
+#biocLite("regionReport")
+#biocLite("clusterProfiler")
+#biocLite("GOexpress")
+#biocLite("QoRTs")
+#biocLite("RMariaDB")
+#biocLite("vsn")
+
+## Load required libraries...
+#library(OrganismDbi) ## Only load if making a new organism annotation package
+#library(AnnotationForge) ## Only load if making a new organism annotation package
 library(RMariaDB)
-library(OrganismDbi)
 library(clusterProfiler)
-library(biomaRt)
-library(AnnotationForge)
-library(GOexpress)
 library(biomaRt)
 library(QoRTs)
 library(DESeq2)
@@ -28,6 +29,7 @@ library(org.Fcandida.eg.db)
 library(ggplot2)
 library(magrittr)
 library(vsn)
+# library(GOexpress)
 # library(ReportingTools)
 
 args<-commandArgs(TRUE)
@@ -104,7 +106,7 @@ counts(dds) %>% str
 # Make read counts table
 read.counts <- counts(dds, normalized=F)
 # Normalize read counts by size factors
-read.counts.sf_normalized <- counts(dds, normalized=F)
+read.counts.sf_normalized <- counts(dds, normalized=T)
 lognorm.read.counts <- log2(read.counts.sf_normalized + 1)
 # Rlog normalized
 dds.rlog <- rlog(dds, blind=T) ### May need to set blind=F if large global changes are observed
@@ -168,9 +170,11 @@ dimnames(read.counts.sf_normalized) = list(rownames(read.counts.sf_normalized), 
 # New metadata table for GOexpress
 decoder.data.goexpress <- decoder.data
 # New objects for input to GOexpress
-row.names(decoder.data.goexpress) <- colnames(exprs)
+row.names(decoder.data.goexpress) <- colnames(read.counts.sf_normalized)
 phenoData <- new("AnnotatedDataFrame", data=decoder.data.goexpress)
-minimalSet <- ExpressionSet(assayData=exprs, phenoData=phenoData)
+minimalSet <- ExpressionSet(assayData=read.counts.sf_normalized, phenoData=phenoData)
+#### see https://support.bioconductor.org/p/73347/
+
 
 ###########################################################################################
 #### Create Region Report for DESeq2 Result ###############################################
@@ -192,9 +196,14 @@ minimalSet <- ExpressionSet(assayData=exprs, phenoData=phenoData)
 
 # finish(desReport)
 
-report <- DESeq2Report(dds, project = 'DESeq2 HTML report',
-                       intgroup = c('condition'), outdir = 'DESeq2-report',
-                       output = 'index', theme = theme_bw())
+plotMA <- DESeq2::plotMA
+
+report <- DESeq2Report(dds,
+                       project = 'DESeq2 HTML report',
+                       intgroup = c('condition'),
+                       outdir = 'DESeq2-report',
+                       output = 'index',
+                       theme = theme_bw())
 
 ###########################################################################################
 ### BUILD ORG PACKAGE OF ANNOTATIONS FOR FOLSOMIA - SHOULD ONLY NEED TO BE DONE ONCE.######
