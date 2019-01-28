@@ -21,7 +21,7 @@ fname=${name%.}
 echo ${name}
 echo ${fname}
 ~/programs/STAR/source/STAR --genomeDir ${genomeDir} --runThreadN 15 --readFilesIn ${fastq} --outFileNamePrefix ./STAR_output/${name} --outSAMtype BAM SortedByCoordinate --quantMode GeneCounts --limitBAMsortRAM 80000000000
-java -Xmx24G -jar ~/programs/QoRTs-1.3.0/QoRTs.jar QC --maxReadLength 500 --stranded --stranded_fr_secondstrand --singleEnded --maxPhredScore 76 --generatePlots --genomeFA ${GENOME} --rawfastq ${fastq} ./STAR_output/${name}Aligned.sortedByCoord.out.bam ${GTF} ./STAR_output/QC/${fname}
+java -Xmx24G -jar ~/programs/QoRTs-1.3.0/QoRTs.jar QC --maxReadLength 800 --stranded --stranded_fr_secondstrand --singleEnded --maxPhredScore 76 --generatePlots --genomeFA ${GENOME} --rawfastq ${fastq} ./STAR_output/${name}Aligned.sortedByCoord.out.bam ${GTF} ./STAR_output/QC/${fname}
 done
 
 #### RUN STAR FOR ALL FASTQs TOGETHER ####
@@ -52,6 +52,6 @@ QCfolder="${PWD}/STAR_output/QC/"
 echo "QC directory is ${QCfolder}"
 
 # Finish DEG analysis in R
-Rscript ${HOME}/scripts/ECCC/FolsomiaToxicogenomics/QoRTs_DESeq_Report.R ${QCfolder} ${GTF}
+Rscript ${HOME}/scripts/ECCC/FolsomiaToxicogenomics/QoRTs_DESeq_Report.R ${QCfolder} ${GTF}  2>&1 | tee RNASeq_Rscript_output.log
 
 # Done
