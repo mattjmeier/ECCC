@@ -1,4 +1,3 @@
-
 ### Perform various RNAseq tasks: QC and DEG analysis ###
 # Arg 1: folder on which to run
 # Arg 2: path to GTF of genome
@@ -23,26 +22,24 @@
 # library(ReportingTools)
 
 packages <- c("RMariaDB",
-		"clusterProfiler",
-		"biomaRt",
-		"QoRTs",
-		"DESeq2",
-		"edgeR",
-		"regionReport",
-		"org.Fcandida.eg.db",
-		"ggplot2",
-		"magrittr",
-		"vsn"
-		)
-			
+                "clusterProfiler",
+                "biomaRt",
+                "QoRTs",
+                "DESeq2",
+                "edgeR",
+                "regionReport",
+                "org.Fcandida.eg.db",
+                "ggplot2",
+                "magrittr",
+                "vsn"
+                )
+
 invisible(suppressPackageStartupMessages(lapply(packages, function(x)require(x, character.only = T, quietly = T))))
 
 args<-commandArgs(TRUE)
 
 setwd(args[1])
 QCdirs <- dir()
-
-result <- tryCatch({
 
 ###########################################################################################
 ####################################
@@ -54,6 +51,7 @@ result <- tryCatch({
 decoder.data <- data.frame(unique.ID = 1:length(QCdirs),
                            group.ID = c("CONTROL","CONTROL2","CONTROL3"),
                            sample.ID = c("20_animals_003","10_animals_001","20_animals_002"),
+						   dose = c("0","0","0"),
                            qc.data.dir = QCdirs)
 
 # Read in results from QC folders
@@ -139,24 +137,24 @@ pc <- prcomp(t(rlog.norm.counts))
 group <- factor(sampleCondition) # Just to make sure it is a factor
 design <- model.matrix(~group)
 y <- DGEList(counts=read.counts, group=group)
-	head(y$counts)
-	head(y$samples)
-	summary(log2(rowSums(cpm(y))))
-	# Filter based on coverage
-	keep <- rowSums( cpm(y) >= 1) >= 2 # 1 CPM in at least 2 samples... Adjust accordingly
-	y.keep <- y[keep,]
-	summary(log2(rowSums(cpm(y.keep))))
-	# Recompute library sizes
-	y.keep$samples$lib.size <- colSums(y.keep$counts)
+        head(y$counts)
+        head(y$samples)
+        summary(log2(rowSums(cpm(y))))
+        # Filter based on coverage
+        keep <- rowSums( cpm(y) >= 1) >= 2 # 1 CPM in at least 2 samples... Adjust accordingly
+        y.keep <- y[keep,]
+        summary(log2(rowSums(cpm(y.keep))))
+        # Recompute library sizes
+        y.keep$samples$lib.size <- colSums(y.keep$counts)
 y.keep <- calcNormFactors(y.keep)
 y.keep$samples
-y.keep <- estimateGLMCommonDisp(y.keep,design)
-y.keep <- estimateGLMTrendedDisp(y.keep,design)
-y.keep <- estimateGLMTagwiseDisp(y.keep,design)
-fit <- glmFit(y.keep,design)
-lrt <- glmLRT(fit,coef=2) ### coef depends on experiment
-topTags(lrt)
-edgeR_results <- topTags(lrt, n=Inf, sort.by="Pvalue", adjust.method="BH")
+#y.keep <- estimateGLMCommonDisp(y.keep,design)
+#y.keep <- estimateGLMTrendedDisp(y.keep,design)
+#y.keep <- estimateGLMTagwiseDisp(y.keep,design)
+#fit <- glmFit(y.keep,design)
+#lrt <- glmLRT(fit,coef=2) ### coef depends on experiment
+#topTags(lrt)
+#edgeR_results <- topTags(lrt, n=Inf, sort.by="Pvalue", adjust.method="BH")
 
 ###########################################################################################
 ######## PRODUCE VARIOUS PLOTS IN PDF #####################################################
@@ -186,7 +184,7 @@ plot(lognorm.read.counts[,1:2],
 plot(rlog.norm.counts[,1:2],
             cex=0.5,
             main="Size factor and rlog normalized read counts")
-			
+
 # Plot mean by standard deviation
 msd_plot <- meanSdPlot(lognorm.read.counts, ranks=FALSE, plot=FALSE)
 msd_plot$gg +
@@ -199,7 +197,7 @@ msd_plot2$gg +
 plot(hclust(distance.m_rlog),
             labels=colnames(rlog.norm.counts),
             main="rlog transformed read counts\ndistance: Pearson correlation")
-			
+
 # Principal components analysis plot
 P <- plotPCA(dds.rlog)
 P <- P + theme_bw() + ggtitle("Rlog transformed counts")
@@ -209,10 +207,10 @@ print(P)
 hist(DESeqResults$pvalue, col="grey",
      border="white", xlab="", ylab="",
      main="Frequencies of all unadjusted p-values")
-	 
+
 # MA Plots
 DESeq2::plotMA(DESeqResults, alpha=0.05, main="MA plot,  results", ylim=c(-4,4))
-DESeq2::plotMA(resLFC, main="MA plot, LFC shrunk")
+DESeq2::plotMA(resLFC, alpha=0.05, main="MA plot, LFC shrunk", ylim=c(-4,4))
 
 dev.off()
 ###########################################################################################
@@ -255,10 +253,10 @@ report <- DESeq2Report(dds,
                        outdir = 'DESeq2-report',
                        output = 'index',
                        theme = theme_bw())
-					   
-					   
-					   
-# edgeReport() 
+
+
+
+# edgeReport()
 
 ###########################################################################################
 ### BUILD ORG PACKAGE OF ANNOTATIONS FOR FOLSOMIA - SHOULD ONLY NEED TO BE DONE ONCE.######
@@ -368,6 +366,45 @@ for (i in keytypes(ensembl)) { print(i); print(head(keys(ensembl, keytype=i))) }
 # install.packages("./org.Fcandida.eg.db", repos = NULL, type="source")
 # library(org.Fcandida.eg.db)
 ###########################################################################################
+
+
+###########################################################################################
+######## PRODUCE INPUT FOR BMDExpress2 ####################################################
+###########################################################################################
+
+# Create input file...
+bmdexpress <- as.data.frame(lognorm.read.counts) # log2 normalized, size factor normalized, 1 added
+head(bmdexpress)
+bmdexpress <- cbind(SampleID=row.names(bmdexpress), bmdexpress, stringsAsFactors=F)
+head(bmdexpress)
+bmdexpress <- rbind( Dose=c("Dose",as.character(decoder.data$dose)), bmdexpress, stringsAsFactors=F)
+bmdexpress <- rbind( Dose=c("Dose","0","1","2"), bmdexpress, stringsAsFactors=F)
+head(bmdexpress)
+write.table(bmdexpress, file = "bmdexpress_input.txt", quote = F, sep = "\t", row.names = F, col.names = T)
+
+
+# Create probe mappings... Should only need to be done once
+
+#bmdexpressProbeMap <- getBM(attributes=c('ensembl_gene_id','ensembl_transcript_id'), mart=ensembl)
+# Rename columns...
+#colnames(bmdexpressProbeMap)[1] = 'Array Probe'
+#colnames(bmdexpressProbeMap)[2] = 'Category Component'
+# Write file...
+#write.table(bmdexpressProbeMap, file = "bmdexpressProbeMap.txt", quote = F, sep = "\t", row.names = F, col.names = T)
+#bmdexpressCategoryMap <- getBM(attributes=c('go_id','name_1006','ensembl_transcript_id'), mart=ensembl)
+# Rename columns...
+#colnames(bmdexpressCategoryMap)[1] = 'Category ID'
+#colnames(bmdexpressCategoryMap)[2] = 'Category Name'
+#colnames(bmdexpressCategoryMap)[3] = 'Category Component'
+# May need to remove empty transcript lines...
+# Write file...
+#write.table(bmdexpressCategoryMap, file = "bmdexpressCategoryMap.txt", quote = F, sep = "\t", row.names = F, col.names = T)
+
+#                       go_id                          GO term accession
+#                   name_1006                               GO term name
+#             definition_1006                         GO term definition
+#             go_linkage_type                      GO term evidence code
+#              namespace_1003                                  GO domain
 
 
 ###########################################################################################
@@ -529,6 +566,3 @@ dev.off()
 #
 ###########################################################################################
 
-}) # END tryCatch
-
-print(paste("result =",result))
