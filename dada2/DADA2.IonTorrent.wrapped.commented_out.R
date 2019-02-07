@@ -1,11 +1,13 @@
 ### Barebones commands to run DADA2 on Ion Torrent data ###
-### Argument 1 should be where your input files are
-### Argument 2 should be where you want the output
-### Argument 3 should glob for a list of files for DADA2 input
+### Argument 1 should be where your input files are - from script, dada2input="${PWD}"
+### Argument 2 should be where you want the output - from script, dada2output="${PWD}/dada2_output"
+### Argument 3 should glob for a list of files for DADA2 input - from script, dada2inputpattern=".*V+.*fastq"
 
 args<-commandArgs(TRUE)
 library(dada2)
-library("DECIPHER")
+library(DECIPHER)
+library(phyloseq)
+library(ips)
 # library(msa)
 
 path <- args[1]
@@ -20,26 +22,26 @@ print(fnFs)
 sample.names <- sapply(strsplit(basename(fnFs), "\\.fastq"), `[`, 1)
 print(sample.names)
 
-if(!file.exists(paste0(plots_path,"/Read_quality.pdf"))) {
+#if(!file.exists(paste0(plots_path,"/Read_quality.pdf"))) {
 	pdf(file=paste0(plots_path,"/Read_quality.pdf"), width=8.5, height=11)
 	plotQualityProfile(fnFs[1:length(fnFs)])
 	dev.off()
-}
+#}
 
 # Make list of files for filtering
 filtFs <- file.path(filt_path, paste0(sample.names, "_filtered.fastq.gz"))
 print(filtFs)
 
 # Filter reads
-out <-filterAndTrim(fnFs, filtFs,  truncLen=240, maxN=0, maxEE=2, truncQ=2, trimLeft=15, rm.phix=FALSE, compress=TRUE, multithread=TRUE)
+#out <-filterAndTrim(fnFs, filtFs,  truncLen=240, maxN=0, maxEE=2, truncQ=2, trimLeft=15, rm.phix=FALSE, compress=TRUE, multithread=TRUE)
 
 # Collect actual list of filtered FASTQ for which files were created (in case some had no reads passing filter)
 filtFs <- list.files(filt_path, full.names=TRUE)
 
 errF <- learnErrors(filtFs, multithread=TRUE)
-pdf(file=paste0(plots_path,"/Error_profiles.pdf"), width=8.5, height=11)
-plotErrors(errF, nominalQ=TRUE)
-dev.off()
+#pdf(file=paste0(plots_path,"/Error_profiles.pdf"), width=8.5, height=11)
+#plotErrors(errF, nominalQ=TRUE)
+#dev.off()
 
 derepFs <- derepFastq(filtFs, verbose=TRUE)
 sample.names <- sapply(strsplit(basename(filtFs), "\\_filtered.fastq.gz"), `[`, 1)
@@ -81,15 +83,27 @@ alignment <- AlignSeqs(DNAStringSet(seqs), anchor=NA)
 save.image(file=paste0(args[2],"/R_output.IonTorrent.NOTREE.RData"))
 
 # Use phangorn library to create tree from multisequence alignment
-library(phangorn)
-phang.align <- phyDat(as(alignment,"matrix"),type="DNA")
-dm <- dist.ml(phang.align)
-treeNJ <- NJ(dm) ## Tip order is not the same as sequence order!
-fit = pml(treeNJ, data=phang.align)
+#library(phangorn)
+#phang.align <- phyDat(as(alignment,"matrix"),type="DNA")
+#dm <- dist.ml(phang.align)
+#treeNJ <- NJ(dm) ## Tip order is not the same as sequence order!
+#fit = pml(treeNJ, data=phang.align)
 # negative edges lengths changed to 0
-fitGTR <- update(fit, k=4, inv=0.2)
-fitGTR <- optim.pml(fitGTR, model="GTR", optInv=TRUE, optGamma=TRUE, rearrangement = "stochastic", control = pml.control(trace = 0))
-detach("package:phangorn", unload=TRUE)
+#fitGTR <- update(fit, k=4, inv=0.2)
+#fitGTR <- optim.pml(fitGTR, model="GTR", optInv=TRUE, optGamma=TRUE, rearrangement = "stochastic", control = pml.control(trace = 0))
+#detach("package:phangorn", unload=TRUE)
+
+# Alternative for trees...
+alignment.rax.gtr <- raxml(alignment,
+m="GTRGAMMAIX", # model
+f="a", # best tree and bootstrap
+p=1234, # random number seed
+x=2345, # random seed for rapid bootstrapping
+N=100, # number of bootstrap replicates
+file="alignment", # name of output files
+exec="raxmlHPC", # name of executable
+threads=16
+)
 
 
 regions <- sapply(strsplit(row.names(seqtab.nochim), split="\\."), `[`, length(strsplit(row.names(seqtab.nochim), split="\\.")[[1]]))
@@ -100,10 +114,8 @@ sampleOrder = row.names(sampledata.df)
 
 
 
-
-
 # Do some preliminary phyloseq work
-library(phyloseq)
+# library(phyloseq)
 # Import tree from database
 x = read_tree_greengenes("~/dbs/trees/97_otus.tree")
 # Create phyloseq object
