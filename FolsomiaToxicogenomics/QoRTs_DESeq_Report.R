@@ -38,7 +38,7 @@ invisible(suppressPackageStartupMessages(lapply(packages, function(x)require(x, 
 
 args<-commandArgs(TRUE)
 
-setwd(args[1])
+setwd(args[1]) # QC folder
 QCdirs <- dir()
 
 ###########################################################################################
@@ -48,27 +48,23 @@ QCdirs <- dir()
 ###########################################################################################
 
 # Hard-coded sample decoder. Should ideally be provided as a text file to be read in.
-decoder.data <- data.frame(unique.ID = 1:length(QCdirs),
-                           group.ID = c("CONTROL","CONTROL2","CONTROL3"),
-                           sample.ID = c("20_animals_003","10_animals_001","20_animals_002"),
-						   dose = c("0","0","0"),
-                           qc.data.dir = QCdirs)
+decoder.data <- read.table("./metadata.ordered.txt", header=T, sep="\t") 
 
 # Read in results from QC folders
 
 res <- read.qc.results.data("./", decoder = decoder.data, calc.DESeq2 = TRUE, calc.edgeR = TRUE)
 
 # Make multiplot, defaults
-makeMultiPlot.all(res, outfile.dir = "./QoRTS_summary_", plot.device.name = "pdf")
+#makeMultiPlot.all(res, outfile.dir = "./QoRTS_summary_", plot.device.name = "pdf")
 
 # Make multiplot, colored by sample
-makeMultiPlot.colorBySample(res, plot.device.name="pdf")
+#makeMultiPlot.colorBySample(res, plot.device.name="pdf")
 
 # Plot biotypes
 byLane.plotter <- build.plotter.colorBySample(res)
-pdf(file = "./biotype.pdf")
-makePlot.biotype.rates(byLane.plotter)
-dev.off()
+#pdf(file = "./biotype.pdf")
+#makePlot.biotype.rates(byLane.plotter)
+#dev.off()
 
 ###########################################################################################
 ###########################################################################################
@@ -78,7 +74,7 @@ dev.off()
 
 # Create DESeq2 Object
 sampleFiles <- paste0(decoder.data$qc.data.dir,"/QC.geneCounts.formatted.for.DESeq.txt.gz")
-sampleCondition <- decoder.data$group.ID
+sampleCondition <- as.factor(decoder.data$group.ID)
 sampleName <- decoder.data$sample.ID
 
 sampleTable <- data.frame(sampleName = sampleName,
@@ -96,10 +92,10 @@ summary(resOrdered)
 sum(resOrdered$padj < 0.1, na.rm=TRUE)
 
 # Needs to be customized for particular experimental design
-DESeqResults_ControlVs2 <- results(dds, contrast=c("condition","CONTROL","CONTROL2"))
-DESeqResults_ControlVs3 <- results(dds, contrast=c("condition","CONTROL","CONTROL3"))
+#DESeqResults_ControlVs2 <- results(dds, contrast=c("condition","CONTROL","CONTROL2"))
+#DESeqResults_ControlVs3 <- results(dds, contrast=c("condition","CONTROL","CONTROL3"))
 # Logfoldchange Shrink
-resLFC <- lfcShrink(dds, coef="condition_CONTROL3_vs_CONTROL", type="apeglm")
+#resLFC <- lfcShrink(dds, coef="condition_CONTROL3_vs_CONTROL", type="apeglm")
 
 # Some info for sanity check
 resultsNames(dds)
@@ -210,7 +206,7 @@ hist(DESeqResults$pvalue, col="grey",
 
 # MA Plots
 DESeq2::plotMA(DESeqResults, alpha=0.05, main="MA plot,  results", ylim=c(-4,4))
-DESeq2::plotMA(resLFC, alpha=0.05, main="MA plot, LFC shrunk", ylim=c(-4,4))
+#DESeq2::plotMA(resLFC, alpha=0.05, main="MA plot, LFC shrunk", ylim=c(-4,4))
 
 dev.off()
 ###########################################################################################
@@ -377,8 +373,8 @@ bmdexpress <- as.data.frame(lognorm.read.counts) # log2 normalized, size factor 
 head(bmdexpress)
 bmdexpress <- cbind(SampleID=row.names(bmdexpress), bmdexpress, stringsAsFactors=F)
 head(bmdexpress)
-bmdexpress <- rbind( Dose=c("Dose",as.character(decoder.data$dose)), bmdexpress, stringsAsFactors=F)
-bmdexpress <- rbind( Dose=c("Dose","0","1","2"), bmdexpress, stringsAsFactors=F)
+bmdexpress <- rbind( Dose=c("Dose",as.character(decoder.data$group.ID)), bmdexpress, stringsAsFactors=F)
+# bmdexpress <- rbind( Dose=c("Dose","0","1","2"), bmdexpress, stringsAsFactors=F)
 head(bmdexpress)
 write.table(bmdexpress, file = "bmdexpress_input.txt", quote = F, sep = "\t", row.names = F, col.names = T)
 
